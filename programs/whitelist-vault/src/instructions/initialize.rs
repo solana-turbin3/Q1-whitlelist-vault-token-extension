@@ -11,46 +11,100 @@ use crate::state::whitelist::Whitelist;
 pub struct Initialize <'info> {
     
     pub admin: Signer<'info>,
-    /// CHECK: Vault account, created by this instruction.
     #[account(
         init,
         seeds = [b"vault".as_ref()],
         bump,
         payer = admin,
-        space = 8 + Vault::INIT_SPACE, // Account discriminator + Pubkey + u8
+        space = Vault::DISCRIMINATOR.len() + Vault::INIT_SPACE,
     )]
     pub vault: Account<'info, Vault>,
+
+    #[account(
+        init,
+        seeds = [b"whitelist".as_ref()],
+        bump,
+        payer = admin,
+        space = Whitelist::DISCRIMINATOR.len() + Whitelist::INIT_SPACE,
+    )]
     pub whitelist: Account<'info, Whitelist>,
     #[account(
         init,
-        token::mint = mint,
-        token::authority = vault,
+        associated_token::mint = mint,
+        associated_token::authority = vault,
     )]
     pub vault_ata: InterfaceAccount<'info, TokenAccount>,
-    pub mint : InterfaceAccount<'info, Mint>,
+
     #[account(
-        token::mint = mint,
+        init,
+        payer = admin,
+        mint::decimals = 9,
+        mint::authority = admin,
+        mint::token_program = token_program,
+        extensions::transfer_hook::authority = admin,
+        extensions::transfer_hook::program_id = crate::ID,
     )]
-    pub destination_token: InterfaceAccount<'info, TokenAccount>,
+    pub mint: InterfaceAccount<'info, Mint>,
+
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token2022>,
+
+    #[account(
+        init,
+        seeds = [b"extra-account-metas", mint.key().as_ref()],
+        bump,
+        space = ExtraAccountMetaList::size_of(
+            InitializeExtraAccountMetaList::extra_account_metas()?.len()
+        ).unwrap(),
+        payer = payer
+    )]
+    pub extra_account_meta_list: AccountInfo<'info>,
 
 
 }
 
 impl<'info> Initialize<'info> {
-    pub fn initialize_vault(&mut self, bump: u8) -> Result<()> {
-        let vault = &mut self.vault;
-        vault.address = self.vault.key();
-        vault.bump = bump;
+    pub fn initialize(&mut self, vault_bump: u8, whitelist_bump: u8) -> Result<()> {
+        self.initialize_vault(vault_bump)?;
+        self.initialize_whitelist(whitelist_bump)?;
+        self.initialize_transfer_hook()?;
 
         Ok(())
     }
 
-    pub fn initialize_whitelist(&mut self, bump: u8) -> Result<()> {
+    fn initialize_vault(&mut self, bump: u8) -> Result<()> {
+        let vault = &mut self.vault;
+        vault.address = self.vault.key();
+        vault.bump = bump;
+        vault.balance = 0;
+
+        Ok(())
+    }
+
+    fn initialize_whitelist(&mut self, bump: u8) -> Result<()> {
         let whitelist = &mut self.whitelist;
         whitelist.address = self.whitelist.key();
         whitelist.bump = bump;
+
+        Ok(())
+    }
+
+    fn initialize_transfer_hook(&mut self) -> Result<()> {
+
+        msg!("Initializing Transfer Hook...");
+
+        // Get the extra account metas for the transfer hook
+        let extra_account_metas = InitializeExtraAccountMetaList::extra_account_metas()?;
+
+        msg!("Extra Account Metas: {:?}", extra_account_metas);
+        msg!("Extra Account Metas Length: {}", extra_account_metas.len());
+
+        // initialize ExtraAccountMetaList account with extra accounts
+        ExtraAccountMetaList::init::<ExecuteInstruction>(
+            &mut self.extra_account_meta_list.try_borrow_mut_data()?,
+            &extra_account_metas
+        ).unwrap();
 
         Ok(())
     }
