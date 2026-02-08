@@ -1,10 +1,12 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{associated_token::AssociatedToken, token_interface::{Mint, TokenAccount, TokenInterface, TransferChecked, transfer_checked}};
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token_2022::{transfer_checked, TransferChecked, Token2022};
+use anchor_spl::token_interface::{Mint, TokenAccount};
 
-use crate::state::Escrow;
+use crate::errors::VaultError;
+use crate::state::{Vault, Whitelist};
 
 #[derive(Accounts)]
-#[instruction(seed: u64)]
 pub struct Deposit<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
@@ -25,6 +27,12 @@ pub struct Deposit<'info> {
     pub vault: Account<'info, Vault>,
     #[account(
         mut,
+        seeds = [b"whitelist".as_ref()],
+        bump = whitelist.bump,
+    )]
+    pub whitelist: Account<'info, Whitelist>,
+    #[account(
+        mut,
         associated_token::mint = mint,
         associated_token::authority = vault,
     )]
@@ -40,13 +48,15 @@ impl<'info> Deposit<'info> {
 
     pub fn deposit(&mut self, amount: u64) -> Result<()> {
 
-        require!(amount > 0, ErrorCode::InvalidDepositAmount);
+        require!(amount > 0, VaultError::InvalidAmount);
 
-        vault.balance = vault.balance
-        .checked_add(amount)
-        .ok_or(ErrorCode::Overflow)?;
+        let vault = &mut self.vault;
+        vault.balance = vault
+            .balance
+            .checked_add(amount)
+            .ok_or(VaultError::OverflowError)?;
 
-        update_whitelisted_amounts(amount)?;
+        self.update_whitelisted_amounts(amount)?;
 
         let cpi_accounts = TransferChecked {
             from: self.user_ata.to_account_info(),
@@ -63,12 +73,17 @@ impl<'info> Deposit<'info> {
     }
 
     fn update_whitelisted_amounts(&mut self, amount: u64) -> Result<()> {
-        let mut current_amount = whitelist.
-        amount[whitelist.get_index(self.user.key())];
+        let whitelist = &mut self.whitelist;
+        let user_key = self.user.key();
 
-        current_amount = current_amount
-        .checked_add(amount)
-        .ok_or(ErrorCode::Overflow)?;
+        if let Some(index) = whitelist.get_index(user_key) {
+            whitelist.amount[index] = whitelist.amount[index]
+                .checked_add(amount)
+                .ok_or(VaultError::OverflowError)?;
+        } else {
+            whitelist.address.push(user_key);
+            whitelist.amount.push(amount);
+        }
 
         Ok(())
     }

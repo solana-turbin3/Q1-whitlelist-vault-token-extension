@@ -1,15 +1,17 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{TokenAccount, Token2022};
-use anchor_spl::token_interface::{
-    Mint, 
-    TokenInterface,
-};
-use crate::state::vault::Vault;
-use crate::state::whitelist::Whitelist;
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token_2022::Token2022;
+use anchor_spl::token_interface::{Mint, TokenAccount};
+use spl_tlv_account_resolution::state::ExtraAccountMetaList;
+use spl_transfer_hook_interface::instruction::ExecuteInstruction;
+
+use crate::instructions::InitializeExtraAccountMetaList;
+use crate::state::{Vault, Whitelist};
 
 #[derive(Accounts)]
 pub struct Initialize <'info> {
     
+    #[account(mut)]
     pub admin: Signer<'info>,
     #[account(
         init,
@@ -28,12 +30,6 @@ pub struct Initialize <'info> {
         space = Whitelist::DISCRIMINATOR.len() + Whitelist::INIT_SPACE,
     )]
     pub whitelist: Account<'info, Whitelist>,
-    #[account(
-        init,
-        associated_token::mint = mint,
-        associated_token::authority = vault,
-    )]
-    pub vault_ata: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         init,
@@ -46,6 +42,14 @@ pub struct Initialize <'info> {
     )]
     pub mint: InterfaceAccount<'info, Mint>,
 
+    #[account(
+        init,
+        associated_token::mint = mint,
+        associated_token::authority = vault,
+        payer = admin,
+    )]
+    pub vault_ata: InterfaceAccount<'info, TokenAccount>,
+
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token2022>,
@@ -57,25 +61,27 @@ pub struct Initialize <'info> {
         space = ExtraAccountMetaList::size_of(
             InitializeExtraAccountMetaList::extra_account_metas()?.len()
         ).unwrap(),
-        payer = payer
+        payer = admin
     )]
+    /// CHECK: This account is initialized and populated via ExtraAccountMetaList::init.
     pub extra_account_meta_list: AccountInfo<'info>,
 
 
 }
 
 impl<'info> Initialize<'info> {
-    pub fn initialize(&mut self, vault_bump: u8, whitelist_bump: u8) -> Result<()> {
-        self.initialize_vault(vault_bump)?;
-        self.initialize_whitelist(whitelist_bump)?;
+    pub fn initialize(&mut self, bumps: InitializeBumps) -> Result<()> {
+        self.initialize_vault(bumps.vault)?;
+        self.initialize_whitelist(bumps.whitelist)?;
         self.initialize_transfer_hook()?;
-
         Ok(())
     }
+    
 
     fn initialize_vault(&mut self, bump: u8) -> Result<()> {
         let vault = &mut self.vault;
-        vault.address = self.vault.key();
+        vault.admin = self.admin.key();
+        vault.mint = self.mint.key();
         vault.bump = bump;
         vault.balance = 0;
 
@@ -84,7 +90,8 @@ impl<'info> Initialize<'info> {
 
     fn initialize_whitelist(&mut self, bump: u8) -> Result<()> {
         let whitelist = &mut self.whitelist;
-        whitelist.address = self.whitelist.key();
+        whitelist.address = Vec::new();
+        whitelist.amount = Vec::new();
         whitelist.bump = bump;
 
         Ok(())
@@ -103,12 +110,10 @@ impl<'info> Initialize<'info> {
         // initialize ExtraAccountMetaList account with extra accounts
         ExtraAccountMetaList::init::<ExecuteInstruction>(
             &mut self.extra_account_meta_list.try_borrow_mut_data()?,
-            &extra_account_metas
-        ).unwrap();
+            &extra_account_metas,
+        )
+        .unwrap();
 
         Ok(())
     }
 }
-
-
-

@@ -1,5 +1,12 @@
+#![allow(unexpected_cfgs)]
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::msg;
+use crate::instructions::*;
+use spl_discriminator::discriminator::SplDiscriminate;
+use spl_transfer_hook_interface::instruction::ExecuteInstruction;
+
+pub mod errors;
+pub mod instructions;
+pub mod state;
 
 
 declare_id!("2Ze9h7UzmTccSf5F6oYYrxxM6biDMDPUWh2B1iKwubEg");
@@ -8,17 +15,10 @@ declare_id!("2Ze9h7UzmTccSf5F6oYYrxxM6biDMDPUWh2B1iKwubEg");
 #[program]
 pub mod whitelist_transfer_hook {
     use super::*;
-
-    pub fn add_to_whitelist(ctx: Context<AddToWhitelist>, address: Pubkey) -> Result<()> {
-        ctx.accounts
-            .add_to_whitelist(address, ctx.bumps.whitelist_entry)
+    
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+        ctx.accounts.initialize(ctx.bumps)
     }
-
-    pub fn remove_from_whitelist(ctx: Context<RemoveFromWhitelist>, address: Pubkey) -> Result<()> {
-        ctx.accounts.remove_from_whitelist(address)
-    }
-
-
 
 
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
@@ -37,4 +37,3 @@ pub mod whitelist_transfer_hook {
         ctx.accounts.transfer_hook(amount)
     }
 }
-

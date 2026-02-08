@@ -12,6 +12,12 @@ pub enum VaultError {
     InvalidMint,
     #[msg("Invalid amount")]
     InvalidAmount,
+    #[msg("Insufficient funds")]
+    InsufficientFunds,
     #[msg("Overflow error")]
     OverflowError,
+    #[msg("Underflow error")]
+    UnderflowError,
+    #[msg("Address is not whitelisted")]
+    NotWhitelisted,
 }

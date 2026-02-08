@@ -28,15 +28,13 @@ pub struct InitializeExtraAccountMetaList<'info> {
 
 impl<'info> InitializeExtraAccountMetaList<'info> {
     pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
-        // The transfer hook context's `owner` is at account index 3.
-        // Derive the per-owner whitelist PDA via seeds.
+        // The whitelist PDA is a global account (no per-owner seed).
         Ok(vec![
             ExtraAccountMeta::new_with_seeds(
                 &[
                     Seed::Literal {
                         bytes: b"whitelist".to_vec(),
                     },
-                    Seed::AccountKey { index: 3 }, // owner
                 ],
                 false,
                 false,
