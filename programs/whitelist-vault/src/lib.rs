@@ -7,6 +7,7 @@ use spl_transfer_hook_interface::instruction::ExecuteInstruction;
 pub mod errors;
 pub mod instructions;
 pub mod state;
+pub mod tests;
 
 
 declare_id!("2Ze9h7UzmTccSf5F6oYYrxxM6biDMDPUWh2B1iKwubEg");
