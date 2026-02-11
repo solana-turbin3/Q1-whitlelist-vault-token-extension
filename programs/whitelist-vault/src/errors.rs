@@ -4,8 +4,8 @@ use anchor_lang::prelude::*;
 pub enum VaultError {
     #[msg("Invalid vault account")]
     InvalidVaultAccount,
-    #[msg("Invalid whitelist account")]
-    InvalidWhitelistAccount,
+    #[msg("Invalid blacklist account")]
+    InvalidBlacklistAccount,
     #[msg("Invalid admin")]
     InvalidAdmin,
     #[msg("Invalid mint")]
@@ -18,6 +18,8 @@ pub enum VaultError {
     OverflowError,
     #[msg("Underflow error")]
     UnderflowError,
-    #[msg("Address is not whitelisted")]
-    NotWhitelisted,
+    #[msg("Address is blacklisted")]
+    Blacklisted,
+    #[msg("Invalid extra account meta list seeds")]
+    InvalidExtraAccountMeta,
 }
